@@ -5,8 +5,11 @@ import org.sacabam.sacabamclickerbe.dto.request.auth.LoginRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.RegisterRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResetPasswordRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ForgotPasswordResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.LoginResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.RegisterResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResetPasswordResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResyncUserResponse;
 
 public interface AuthService {
 
@@ -14,9 +17,9 @@ public interface AuthService {
 
     RegisterResponse register(RegisterRequest request);
 
-    void forgotPassword(ForgotPasswordRequest request);
+    ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request);
 
-    void resetPassword(ResetPasswordRequest request);
+    ResetPasswordResponse resetPassword(ResetPasswordRequest request);
 
-    void resyncUser(ResyncUserRequest request);
+    ResyncUserResponse resyncUser(ResyncUserRequest request);
 }

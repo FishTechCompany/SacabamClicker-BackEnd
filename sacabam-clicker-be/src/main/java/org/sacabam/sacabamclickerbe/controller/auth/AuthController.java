@@ -12,6 +12,7 @@ import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
 import org.sacabam.sacabamclickerbe.dto.response.auth.ApiResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.LoginResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.RegisterResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResyncUserResponse;
 import org.sacabam.sacabamclickerbe.service.auth.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +27,7 @@ public class AuthController {
     private final AuthService authService;
 
     @Operation(summary = "Đăng nhập", description = "Đăng nhập bằng email và mật khẩu")
-    @PostMapping("/admin/users")
+    @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse loginResponse = authService.login(request);
         ApiResponse<LoginResponse> response = ApiResponse.success(loginResponse, "Đăng nhập thành công");
@@ -45,7 +46,7 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
-        ApiResponse<Object> response = ApiResponse.success(null, "Nếu email tồn tại, OTP sẽ được gửi");
+        ApiResponse<Object> response = ApiResponse.success(null, "Nếu email tồn tại trong hệ thống, mã OTP sẽ được gửi đi.");
         return ResponseEntity.ok(response);
     }
 
@@ -53,15 +54,30 @@ public class AuthController {
     @PutMapping("/reset-password")
     public ResponseEntity<ApiResponse<Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
-        ApiResponse<Object> response = ApiResponse.success(null, "Đổi mật khẩu thành công");
+        ApiResponse<Object> response = ApiResponse.success(null, "Mật khẩu đã được thay đổi thành công! Goshujinsama có thể đăng nhập lại rồi ạ! >w<");
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Đồng bộ dữ liệu user", description = "Cập nhật thông tin game profile của user")
-    @PostMapping("/auth/me")
-    public ResponseEntity<ApiResponse<Object>> resyncUser(@Valid @RequestBody ResyncUserRequest request) {
-        authService.resyncUser(request);
-        ApiResponse<Object> response = ApiResponse.success(null, "Đồng bộ dữ liệu thành công");
+    @Operation(summary = "Đồng bộ dữ liệu user", description = "Cập nhật thông tin game profile của user với JWT token")
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<ResyncUserResponse>> resyncUser(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) Long currentScore,
+            @RequestParam(required = false) Integer clickPower,
+            @RequestParam(required = false) Integer upgradeLevel) {
+
+        System.out.println("🔍 Auth Debug: Received Authorization header: " +
+                (authHeader != null ? authHeader.substring(0, Math.min(30, authHeader.length())) + "..." : "null"));
+
+        // Extract token from Authorization header (remove "Bearer " prefix)
+        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+
+        System.out.println("🔍 Auth Debug: Extracted token: " +
+                (token != null ? token.substring(0, Math.min(20, token.length())) + "..." : "null"));
+
+        ResyncUserRequest request = new ResyncUserRequest(token, currentScore, clickPower, upgradeLevel);
+        ResyncUserResponse resyncUserResponse = authService.resyncUser(request);
+        ApiResponse<ResyncUserResponse> response = ApiResponse.success(resyncUserResponse, "Đồng bộ dữ liệu thành công");
         return ResponseEntity.ok(response);
     }
 }

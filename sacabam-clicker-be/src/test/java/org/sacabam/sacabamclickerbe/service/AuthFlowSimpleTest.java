@@ -11,6 +11,7 @@ import org.sacabam.sacabamclickerbe.dto.request.auth.LoginRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.RegisterRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResetPasswordRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResyncUserResponse;
 import org.sacabam.sacabamclickerbe.entity.GameProfile;
 import org.sacabam.sacabamclickerbe.entity.Role;
 import org.sacabam.sacabamclickerbe.entity.User;
@@ -189,7 +190,7 @@ class AuthFlowSimpleTest {
                 () -> authService.register(request));
 
         assertEquals("Mật khẩu xác nhận không khớp", exception.getMessage());
-        assertEquals("VALIDATION_ERROR", exception.getErrorCode());
+        assertEquals("PASSWORD_MISMATCH", exception.getErrorCode());
         assertEquals(400, exception.getStatus());
 
         // Verify register flow stops at validation
@@ -243,9 +244,9 @@ class AuthFlowSimpleTest {
         AuthException exception = assertThrows(AuthException.class,
                 () -> authService.resetPassword(request));
 
-        assertEquals("Email không tồn tại", exception.getMessage());
-        assertEquals("VALIDATION_ERROR", exception.getErrorCode());
-        assertEquals(400, exception.getStatus());
+        assertEquals("Không tìm thấy người dùng với email này", exception.getMessage());
+        assertEquals("USER_NOT_FOUND", exception.getErrorCode());
+        assertEquals(404, exception.getStatus());
 
         // Verify reset password flow stops at email check
         verify(passwordUtil).isValidPassword(request.getNewPassword());
@@ -264,7 +265,7 @@ class AuthFlowSimpleTest {
                 () -> authService.resetPassword(request));
 
         assertEquals("Mật khẩu xác nhận không khớp", exception.getMessage());
-        assertEquals("VALIDATION_ERROR", exception.getErrorCode());
+        assertEquals("PASSWORD_MISMATCH", exception.getErrorCode());
         assertEquals(400, exception.getStatus());
 
         // Verify reset password flow stops at validation
@@ -274,50 +275,64 @@ class AuthFlowSimpleTest {
     // ========== RESYNC USER FLOW TESTS ==========
 
     @Test
-    @DisplayName("Resync User Flow - Thất bại với userId không tồn tại")
-    void resyncUserFlow_Failure_WithNonExistentUserId() {
+    @DisplayName("Resync User Flow - Thất bại với token không hợp lệ")
+    void resyncUserFlow_Failure_WithInvalidToken() {
         // Given
-        ResyncUserRequest request = new ResyncUserRequest(999, 5000L, 3, 2);
-
-        when(userRepository.findById(request.getUserId())).thenReturn(Optional.empty());
+        ResyncUserRequest request = new ResyncUserRequest("invalid-token", 5000L, 3, 2);
 
         // When & Then
         AuthException exception = assertThrows(AuthException.class,
                 () -> authService.resyncUser(request));
 
-        assertEquals("User không tồn tại", exception.getMessage());
-        assertEquals("VALIDATION_ERROR", exception.getErrorCode());
-        assertEquals(400, exception.getStatus());
+        assertEquals("Token không hợp lệ", exception.getMessage());
+        assertEquals("INVALID_TOKEN", exception.getErrorCode());
+        assertEquals(401, exception.getStatus());
 
-        // Verify resync user flow stops at user check
-        verify(userRepository).findById(request.getUserId());
+        // Verify no database interactions for invalid token
+        verifyNoInteractions(userRepository);
         verifyNoInteractions(gameProfileRepository);
     }
 
     @Test
-    @DisplayName("Resync User Flow - Thất bại với game profile không tồn tại")
-    void resyncUserFlow_Failure_WithNonExistentGameProfile() {
-        // Given
-        ResyncUserRequest request = new ResyncUserRequest(1, 5000L, 3, 2);
+    @DisplayName("Resync User Flow - Thành công với token hợp lệ")
+    void resyncUserFlow_Success_WithValidToken() {
+        // Given - Create a valid JWT token for testing
+        String validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNjE2MjM5MDIyfQ.test";
+        ResyncUserRequest request = new ResyncUserRequest(validToken, 5000L, 3, 2);
 
         User testUser = new User();
         testUser.setId(1);
         testUser.setEmail("test@example.com");
 
-        when(userRepository.findById(request.getUserId())).thenReturn(Optional.of(testUser));
-        when(gameProfileRepository.findByUserId(testUser.getId())).thenReturn(Optional.empty());
+        GameProfile testProfile = new GameProfile();
+        testProfile.setId(1);
+        testProfile.setUser(testUser); // Sử dụng setUser thay vì setUserId
+        testProfile.setCurrentScore(1000L);
+        testProfile.setClickPower(1);
+        testProfile.setUpgradeLevel(1);
 
-        // When & Then
-        AuthException exception = assertThrows(AuthException.class,
-                () -> authService.resyncUser(request));
+        // Mock JWT validation and user lookup
+        when(jwtUtil.validateToken(validToken)).thenReturn(true);
+        when(jwtUtil.getUserIdFromToken(validToken)).thenReturn(1);
+        when(jwtUtil.getEmailFromToken(validToken)).thenReturn("test@example.com");
+        when(userRepository.findById(1)).thenReturn(Optional.of(testUser));
+        when(gameProfileRepository.findByUserId(testUser.getId())).thenReturn(Optional.of(testProfile));
+        when(gameProfileRepository.save(any(GameProfile.class))).thenReturn(testProfile);
 
-        assertEquals("Game profile không tồn tại", exception.getMessage());
-        assertEquals("VALIDATION_ERROR", exception.getErrorCode());
-        assertEquals(400, exception.getStatus());
+        // When
+        ResyncUserResponse response = authService.resyncUser(request);
 
-        // Verify resync user flow stops at game profile check
-        verify(userRepository).findById(request.getUserId());
+        // Then
+        assertNotNull(response);
+        assertEquals(1, response.getUserId());
+        assertEquals("test@example.com", response.getEmail());
+        assertEquals(5000L, response.getCurrentScore());
+        assertEquals(3, response.getClickPower());
+        assertEquals(2, response.getUpgradeLevel());
+
+        // Verify interactions
+        verify(userRepository).findById(1);
         verify(gameProfileRepository).findByUserId(testUser.getId());
-        verify(gameProfileRepository, never()).save(any(GameProfile.class));
+        verify(gameProfileRepository).save(any(GameProfile.class));
     }
 }

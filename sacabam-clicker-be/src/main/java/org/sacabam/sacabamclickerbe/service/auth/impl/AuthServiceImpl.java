@@ -7,8 +7,11 @@ import org.sacabam.sacabamclickerbe.dto.request.auth.LoginRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.RegisterRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResetPasswordRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ForgotPasswordResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.LoginResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.RegisterResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResetPasswordResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResyncUserResponse;
 import org.sacabam.sacabamclickerbe.entity.GameProfile;
 import org.sacabam.sacabamclickerbe.entity.Role;
 import org.sacabam.sacabamclickerbe.entity.RolePermission;
@@ -142,23 +145,36 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void forgotPassword(ForgotPasswordRequest request) {
+    public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request) {
         log.info("Forgot password request for email: {}", request.getEmail());
 
-        // Không tiết lộ thông tin user có tồn tại hay không
-        // Chỉ log để admin biết
+        // Kiểm tra user có tồn tại không
         boolean userExists = userRepository.existsByEmail(request.getEmail());
+
         if (userExists) {
             log.info("Password reset requested for existing user: {}", request.getEmail());
-            // TODO: Implement send OTP logic here
+            // TODO: Implement real OTP sending later
+            log.info("📧 MOCK: OTP sent to {}", request.getEmail());
+
+            return new ForgotPasswordResponse(
+                    request.getEmail(),
+                    "OTP đã được gửi đến email của bạn (Mock)",
+                    15 // OTP expires in 15 minutes
+            );
         } else {
             log.warn("Password reset requested for non-existing user: {}", request.getEmail());
+            // Vẫn trả về success để không tiết lộ thông tin user
+            return new ForgotPasswordResponse(
+                    request.getEmail(),
+                    "Nếu email tồn tại, OTP sẽ được gửi đến email của bạn",
+                    15
+            );
         }
     }
 
     @Override
     @Transactional
-    public void resetPassword(ResetPasswordRequest request) {
+    public ResetPasswordResponse resetPassword(ResetPasswordRequest request) {
         log.info("Reset password request for email: {}", request.getEmail());
 
         // Validate input
@@ -166,30 +182,45 @@ public class AuthServiceImpl implements AuthService {
 
         // Tìm user
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> AuthException.validationError("Email không tồn tại"));
+                .orElseThrow(AuthException::userNotFound);
 
-        // TODO: Validate OTP here (for now, we'll skip OTP validation)
-        // In real implementation, you would validate the OTP against stored value
+        // Mock OTP validation - chỉ accept "123456"
+        if (!"123456".equals(request.getOtp())) {
+            throw AuthException.invalidOtp();
+        }
 
         // Update password
         user.setPassword(passwordUtil.encode(request.getNewPassword()));
         userRepository.save(user);
 
         log.info("Password reset successful for user: {}", user.getEmail());
+        return new ResetPasswordResponse(
+                user.getEmail(),
+                "Mật khẩu đã được cập nhật thành công"
+        );
     }
 
     @Override
     @Transactional
-    public void resyncUser(ResyncUserRequest request) {
-        log.info("Resync user request for userId: {}", request.getUserId());
+    public ResyncUserResponse resyncUser(ResyncUserRequest request) {
+        log.info("Resync user request with token");
+
+        // Validate và decode token
+        if (!jwtUtil.validateToken(request.getToken())) {
+            throw AuthException.invalidToken();
+        }
+
+        // Lấy userId từ token
+        Integer userId = jwtUtil.getUserIdFromToken(request.getToken());
+        String email = jwtUtil.getEmailFromToken(request.getToken());
 
         // Tìm user
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> AuthException.validationError("User không tồn tại"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(AuthException::userNotFound);
 
         // Tìm game profile
         GameProfile gameProfile = gameProfileRepository.findByUserId(user.getId())
-                .orElseThrow(() -> AuthException.validationError("Game profile không tồn tại"));
+                .orElseThrow(AuthException::profileNotFound);
 
         // Update game profile data
         if (request.getCurrentScore() != null) {
@@ -207,25 +238,34 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("User resync successful for userId: {} with score: {}, clickPower: {}, upgradeLevel: {}",
                 user.getId(), gameProfile.getCurrentScore(), gameProfile.getClickPower(), gameProfile.getUpgradeLevel());
+
+        return new ResyncUserResponse(
+                user.getId(),
+                user.getEmail(),
+                gameProfile.getCurrentScore(),
+                gameProfile.getClickPower(),
+                gameProfile.getUpgradeLevel(),
+                "Đồng bộ dữ liệu thành công"
+        );
     }
 
     private void validateRegisterRequest(RegisterRequest request) {
         if (!request.getPassword().equals(request.getConfirmPassword())) {
-            throw AuthException.validationError("Mật khẩu xác nhận không khớp");
+            throw AuthException.passwordMismatch();
         }
 
         if (!passwordUtil.isValidPassword(request.getPassword())) {
-            throw AuthException.validationError("Mật khẩu phải có ít nhất 6 ký tự");
+            throw AuthException.weakPassword();
         }
     }
 
     private void validateResetPasswordRequest(ResetPasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw AuthException.validationError("Mật khẩu xác nhận không khớp");
+            throw AuthException.passwordMismatch();
         }
 
         if (!passwordUtil.isValidPassword(request.getNewPassword())) {
-            throw AuthException.validationError("Mật khẩu phải có ít nhất 6 ký tự");
+            throw AuthException.weakPassword();
         }
     }
 
