@@ -33,6 +33,9 @@ public class SacabamClickerBeApplication {
                 registry.addMapping("/**") // Cho phép gọi tất cả API
                         .allowedOrigins("*") // Tạm thời cho phép mọi nơi gọi (sau này đổi thành domain Vercel)
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS");
+
+
+
             }
         };
     }
