@@ -1,10 +1,10 @@
-package org.sacabam.sacabamclickerbe.enums;
+package org.sacabam.sacabamclickerbe.enums.auth;
 
 public enum UserStatus {
-    ACTIVE("active"),
-    INACTIVE("inactive"),
-    BANNED("banned"),
-    PENDING("pending");
+    ACTIVE("ACTIVE"),
+    INACTIVE("INACTIVE"),
+    BANNED("BANNED"),
+    PENDING("PENDING");
 
     private final String value;
 

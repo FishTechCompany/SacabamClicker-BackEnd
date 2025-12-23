@@ -1,0 +1,30 @@
+{
+  "registerRequest": {
+    "email": "test@example.com",
+    "password": "testPassword123",
+    "confirmPassword": "testPassword123"
+  },
+  "loginRequest": {
+    "email": "test@example.com",
+    "password": "testPassword123"
+  },
+  "forgotPasswordRequest": {
+    "email": "test@example.com"
+  },
+  "resetPasswordRequest": {
+    "email": "test@example.com",
+    "otp": "123456",
+    "newPassword": "newTestPassword123",
+    "confirmPassword": "newTestPassword123"
+  },
+  "resyncUserRequest": {
+    "userId": 1,
+    "currentScore": 9999,
+    "clickPower": 5,
+    "upgradeLevel": 3
+  },
+  "loginAfterResetRequest": {
+    "email": "integration.test@example.com",
+    "password": "newTestPassword123"
+  }
+}

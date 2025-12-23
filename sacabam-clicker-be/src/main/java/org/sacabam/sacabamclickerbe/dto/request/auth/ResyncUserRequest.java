@@ -1,4 +1,4 @@
-package org.sacabam.sacabamclickerbe.dto.request;
+package org.sacabam.sacabamclickerbe.dto.request.auth;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;

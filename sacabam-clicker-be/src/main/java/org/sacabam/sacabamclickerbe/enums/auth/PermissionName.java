@@ -1,4 +1,4 @@
-package org.sacabam.sacabamclickerbe.enums;
+package org.sacabam.sacabamclickerbe.enums.auth;
 
 public enum PermissionName {
     PLAY_GAME("PLAY_GAME"),                 // id=0 - Chơi và sync điểm

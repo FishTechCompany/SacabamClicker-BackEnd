@@ -1,9 +1,9 @@
-package org.sacabam.sacabamclickerbe.enums;
+package org.sacabam.sacabamclickerbe.enums.auth;
 
 public enum GameProfileStatus {
-    ACTIVE("active"),
-    INACTIVE("inactive"),
-    SUSPENDED("suspended");
+    ACTIVE("ACTIVE"),
+    INACTIVE("INACTIVE"),
+    SUSPENDED("SUSPENDED");
 
     private final String value;
 

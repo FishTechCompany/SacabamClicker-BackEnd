@@ -1,4 +1,4 @@
-package org.sacabam.sacabamclickerbe.dto.response;
+package org.sacabam.sacabamclickerbe.dto.response.auth;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

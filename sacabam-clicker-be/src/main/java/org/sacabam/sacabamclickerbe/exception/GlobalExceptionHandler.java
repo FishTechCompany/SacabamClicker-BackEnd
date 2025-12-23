@@ -1,6 +1,6 @@
 package org.sacabam.sacabamclickerbe.exception;
 
-import org.sacabam.sacabamclickerbe.dto.response.ApiResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
