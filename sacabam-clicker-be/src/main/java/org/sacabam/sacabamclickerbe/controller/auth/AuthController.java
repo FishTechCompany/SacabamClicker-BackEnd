@@ -1,18 +1,18 @@
-package org.sacabam.sacabamclickerbe.controller;
+package org.sacabam.sacabamclickerbe.controller.auth;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.sacabam.sacabamclickerbe.dto.request.ForgotPasswordRequest;
-import org.sacabam.sacabamclickerbe.dto.request.LoginRequest;
-import org.sacabam.sacabamclickerbe.dto.request.RegisterRequest;
-import org.sacabam.sacabamclickerbe.dto.request.ResetPasswordRequest;
-import org.sacabam.sacabamclickerbe.dto.request.ResyncUserRequest;
-import org.sacabam.sacabamclickerbe.dto.response.ApiResponse;
-import org.sacabam.sacabamclickerbe.dto.response.LoginResponse;
-import org.sacabam.sacabamclickerbe.dto.response.RegisterResponse;
-import org.sacabam.sacabamclickerbe.service.AuthService;
+import org.sacabam.sacabamclickerbe.dto.request.auth.ForgotPasswordRequest;
+import org.sacabam.sacabamclickerbe.dto.request.auth.LoginRequest;
+import org.sacabam.sacabamclickerbe.dto.request.auth.RegisterRequest;
+import org.sacabam.sacabamclickerbe.dto.request.auth.ResetPasswordRequest;
+import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ApiResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.LoginResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.RegisterResponse;
+import org.sacabam.sacabamclickerbe.service.auth.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +26,7 @@ public class AuthController {
     private final AuthService authService;
 
     @Operation(summary = "Đăng nhập", description = "Đăng nhập bằng email và mật khẩu")
-    @PostMapping("/login")
+    @PostMapping("/admin/users")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse loginResponse = authService.login(request);
         ApiResponse<LoginResponse> response = ApiResponse.success(loginResponse, "Đăng nhập thành công");
@@ -58,7 +58,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Đồng bộ dữ liệu user", description = "Cập nhật thông tin game profile của user")
-    @PostMapping("/resync-user")
+    @PostMapping("/auth/me")
     public ResponseEntity<ApiResponse<Object>> resyncUser(@Valid @RequestBody ResyncUserRequest request) {
         authService.resyncUser(request);
         ApiResponse<Object> response = ApiResponse.success(null, "Đồng bộ dữ liệu thành công");

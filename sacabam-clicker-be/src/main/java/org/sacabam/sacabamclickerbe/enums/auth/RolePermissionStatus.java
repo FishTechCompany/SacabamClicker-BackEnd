@@ -1,4 +1,4 @@
-package org.sacabam.sacabamclickerbe.enums;
+package org.sacabam.sacabamclickerbe.enums.auth;
 
 public enum RolePermissionStatus {
     ACTIVE("ACTIVE"),

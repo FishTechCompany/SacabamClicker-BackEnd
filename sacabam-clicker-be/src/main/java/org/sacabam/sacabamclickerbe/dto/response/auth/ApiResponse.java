@@ -1,4 +1,4 @@
-package org.sacabam.sacabamclickerbe.dto.response;
+package org.sacabam.sacabamclickerbe.dto.response.auth;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;

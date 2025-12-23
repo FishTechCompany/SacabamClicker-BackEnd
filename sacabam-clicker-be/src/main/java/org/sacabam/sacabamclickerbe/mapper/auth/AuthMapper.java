@@ -1,8 +1,8 @@
-package org.sacabam.sacabamclickerbe.mapper;
+package org.sacabam.sacabamclickerbe.mapper.auth;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.sacabam.sacabamclickerbe.dto.response.RegisterResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.RegisterResponse;
 import org.sacabam.sacabamclickerbe.entity.User;
 
 @Mapper(componentModel = "spring")
