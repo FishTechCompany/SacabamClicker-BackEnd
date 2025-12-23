@@ -26,7 +26,7 @@ public class AuthController {
     private final AuthService authService;
 
     @Operation(summary = "Đăng nhập", description = "Đăng nhập bằng email và mật khẩu")
-    @PostMapping("/admin/users")
+    @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse loginResponse = authService.login(request);
         ApiResponse<LoginResponse> response = ApiResponse.success(loginResponse, "Đăng nhập thành công");
@@ -42,7 +42,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Quên mật khẩu", description = "Gửi OTP để reset mật khẩu")
-    @PostMapping("/forgot-password")
+    @PostMapping("/forgot")
     public ResponseEntity<ApiResponse<Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
         ApiResponse<Object> response = ApiResponse.success(null, "Nếu email tồn tại, OTP sẽ được gửi");
@@ -50,7 +50,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Reset mật khẩu", description = "Reset mật khẩu bằng OTP")
-    @PutMapping("/reset-password")
+    @PutMapping("/reset")
     public ResponseEntity<ApiResponse<Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
         ApiResponse<Object> response = ApiResponse.success(null, "Đổi mật khẩu thành công");
@@ -58,7 +58,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Đồng bộ dữ liệu user", description = "Cập nhật thông tin game profile của user")
-    @PostMapping("/auth/me")
+    @PostMapping("/me")
     public ResponseEntity<ApiResponse<Object>> resyncUser(@Valid @RequestBody ResyncUserRequest request) {
         authService.resyncUser(request);
         ApiResponse<Object> response = ApiResponse.success(null, "Đồng bộ dữ liệu thành công");
