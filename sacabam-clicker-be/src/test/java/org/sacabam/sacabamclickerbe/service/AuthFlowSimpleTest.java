@@ -1,5 +1,6 @@
 package org.sacabam.sacabamclickerbe.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,26 +12,34 @@ import org.sacabam.sacabamclickerbe.dto.request.auth.LoginRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.RegisterRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResetPasswordRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ForgotPasswordResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResetPasswordResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.ResyncUserResponse;
 import org.sacabam.sacabamclickerbe.entity.GameProfile;
 import org.sacabam.sacabamclickerbe.entity.Role;
 import org.sacabam.sacabamclickerbe.entity.User;
+import org.sacabam.sacabamclickerbe.enums.auth.OtpType;
 import org.sacabam.sacabamclickerbe.enums.auth.RoleName;
 import org.sacabam.sacabamclickerbe.enums.auth.UserStatus;
 import org.sacabam.sacabamclickerbe.exception.AuthException;
 import org.sacabam.sacabamclickerbe.mapper.auth.AuthMapper;
 import org.sacabam.sacabamclickerbe.repository.*;
 import org.sacabam.sacabamclickerbe.service.auth.impl.AuthServiceImpl;
+import org.sacabam.sacabamclickerbe.service.email.EmailService;
+import org.sacabam.sacabamclickerbe.service.otp.OtpService;
 import org.sacabam.sacabamclickerbe.utils.JwtUtil;
 import org.sacabam.sacabamclickerbe.utils.PasswordUtil;
+import org.sacabam.sacabamclickerbe.utils.EmailUtil;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Auth Flow Simple Tests")
+@DisplayName("Auth Flow Complete Tests with OTP")
 class AuthFlowSimpleTest {
 
     @Mock
@@ -53,6 +62,23 @@ class AuthFlowSimpleTest {
 
     @Mock
     private JwtUtil jwtUtil;
+
+    @Mock
+    private OtpService otpService;
+
+    @Mock
+    private EmailService emailService;
+
+    @Mock
+    private EmailUtil emailUtil;
+
+    @BeforeEach
+    void setUp() {
+        // Mock EmailUtil để trả về true cho tất cả email hợp lệ trong test (lenient để tránh unnecessary stubbing warning)
+        lenient().when(emailUtil.isValidEmail(anyString())).thenReturn(true);
+        lenient().when(emailUtil.normalizeEmail(anyString())).thenAnswer(invocation ->
+                invocation.getArgument(0, String.class).toLowerCase());
+    }
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -161,7 +187,8 @@ class AuthFlowSimpleTest {
         // Given
         RegisterRequest request = new RegisterRequest("existing@example.com", "password123", "password123");
 
-        // Mock password validation để pass qua validateRegisterRequest
+        // Mock email validation và password validation để pass qua validateRegisterRequest
+        when(emailUtil.isValidEmail(request.getEmail())).thenReturn(true);
         when(passwordUtil.isValidPassword(request.getPassword())).thenReturn(true);
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
 
@@ -174,6 +201,7 @@ class AuthFlowSimpleTest {
         assertEquals(409, exception.getStatus());
 
         // Verify register flow stops at email check
+        verify(emailUtil).isValidEmail(request.getEmail());
         verify(passwordUtil).isValidPassword(request.getPassword());
         verify(userRepository).existsByEmail(request.getEmail());
         verifyNoInteractions(roleRepository, authMapper, gameProfileRepository);
@@ -197,39 +225,120 @@ class AuthFlowSimpleTest {
         verifyNoInteractions(userRepository, roleRepository, passwordUtil, authMapper, gameProfileRepository);
     }
 
-    // ========== FORGOT PASSWORD FLOW TESTS ==========
+    // ========== FORGOT PASSWORD FLOW TESTS WITH OTP ==========
 
     @Test
-    @DisplayName("Forgot Password Flow - Xử lý thành công")
-    void forgotPasswordFlow_Success() {
+    @DisplayName("Forgot Password Flow - Thành công với user tồn tại (gửi OTP thật)")
+    void forgotPasswordFlow_Success_WithExistingUser() {
         // Given
         ForgotPasswordRequest request = new ForgotPasswordRequest("test@example.com");
 
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
+        doNothing().when(otpService).generateAndSendOtp(request.getEmail(), OtpType.FORGOT_PASSWORD);
 
-        // When & Then
-        assertDoesNotThrow(() -> authService.forgotPassword(request));
+        // When
+        ForgotPasswordResponse response = authService.forgotPassword(request);
 
-        // Verify forgot password flow
+        // Then
+        assertNotNull(response);
+        assertEquals("test@example.com", response.getEmail());
+        assertEquals("OTP đã được gửi đến email của bạn", response.getMessage());
+        assertEquals(15, response.getOtpExpirationMinutes());
+
+        // Verify OTP service was called
         verify(userRepository).existsByEmail(request.getEmail());
+        verify(otpService).generateAndSendOtp(request.getEmail(), OtpType.FORGOT_PASSWORD);
     }
 
     @Test
-    @DisplayName("Forgot Password Flow - Với email không tồn tại")
-    void forgotPasswordFlow_WithNonExistentEmail() {
+    @DisplayName("Forgot Password Flow - Với email không tồn tại (không gửi OTP)")
+    void forgotPasswordFlow_WithNonExistentEmail_NoOtpSent() {
         // Given
         ForgotPasswordRequest request = new ForgotPasswordRequest("nonexistent@example.com");
 
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
 
-        // When & Then
-        assertDoesNotThrow(() -> authService.forgotPassword(request));
+        // When
+        ForgotPasswordResponse response = authService.forgotPassword(request);
 
-        // Verify forgot password flow (should not reveal if email exists)
+        // Then
+        assertNotNull(response);
+        assertEquals("nonexistent@example.com", response.getEmail());
+        assertEquals("Nếu email tồn tại, OTP sẽ được gửi đến email của bạn", response.getMessage());
+        assertEquals(15, response.getOtpExpirationMinutes());
+
+        // Verify OTP service was NOT called for non-existent email
         verify(userRepository).existsByEmail(request.getEmail());
+        verify(otpService, never()).generateAndSendOtp(anyString(), any(OtpType.class));
     }
 
-    // ========== RESET PASSWORD FLOW TESTS ==========
+    // ========== RESET PASSWORD FLOW TESTS WITH OTP ==========
+
+    @Test
+    @DisplayName("Reset Password Flow - Thành công với OTP hợp lệ")
+    void resetPasswordFlow_Success_WithValidOtp() {
+        // Given
+        ResetPasswordRequest request = new ResetPasswordRequest("test@example.com", "123456", "newpassword123", "newpassword123");
+
+        User testUser = new User();
+        testUser.setId(1);
+        testUser.setEmail("test@example.com");
+        testUser.setPassword("oldHashedPassword");
+
+        when(passwordUtil.isValidPassword(request.getNewPassword())).thenReturn(true);
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(testUser));
+        when(otpService.validateOtp(request.getEmail(), request.getOtp(), OtpType.FORGOT_PASSWORD)).thenReturn(true);
+        when(passwordUtil.encode(request.getNewPassword())).thenReturn("newHashedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        doNothing().when(emailService).sendPasswordChangeNotification(testUser.getEmail());
+
+        // When
+        ResetPasswordResponse response = authService.resetPassword(request);
+
+        // Then
+        assertNotNull(response);
+        assertEquals("test@example.com", response.getEmail());
+        assertEquals("Mật khẩu đã được cập nhật thành công", response.getMessage());
+
+        // Verify complete flow
+        verify(passwordUtil).isValidPassword(request.getNewPassword());
+        verify(userRepository).findByEmail(request.getEmail());
+        verify(otpService).validateOtp(request.getEmail(), request.getOtp(), OtpType.FORGOT_PASSWORD);
+        verify(passwordUtil).encode(request.getNewPassword());
+        verify(userRepository).save(testUser);
+        verify(emailService).sendPasswordChangeNotification(testUser.getEmail());
+    }
+
+    @Test
+    @DisplayName("Reset Password Flow - Thất bại với OTP không hợp lệ")
+    void resetPasswordFlow_Failure_WithInvalidOtp() {
+        // Given
+        ResetPasswordRequest request = new ResetPasswordRequest("test@example.com", "wrong-otp", "newpassword123", "newpassword123");
+
+        User testUser = new User();
+        testUser.setId(1);
+        testUser.setEmail("test@example.com");
+
+        when(passwordUtil.isValidPassword(request.getNewPassword())).thenReturn(true);
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(testUser));
+        when(otpService.validateOtp(request.getEmail(), request.getOtp(), OtpType.FORGOT_PASSWORD)).thenReturn(false);
+
+        // When & Then
+        AuthException exception = assertThrows(AuthException.class,
+                () -> authService.resetPassword(request));
+
+        assertEquals("Mã OTP không chính xác hoặc đã hết hạn!", exception.getMessage());
+        assertEquals("INVALID_OTP", exception.getErrorCode());
+        assertEquals(400, exception.getStatus());
+
+        // Verify flow stops at OTP validation
+        verify(passwordUtil).isValidPassword(request.getNewPassword());
+        verify(userRepository).findByEmail(request.getEmail());
+        verify(otpService).validateOtp(request.getEmail(), request.getOtp(), OtpType.FORGOT_PASSWORD);
+        verify(passwordUtil, never()).encode(anyString());
+        verify(userRepository, never()).save(any(User.class));
+        verify(emailService, never()).sendPasswordChangeNotification(anyString());
+    }
 
     @Test
     @DisplayName("Reset Password Flow - Thất bại với email không tồn tại")
@@ -251,6 +360,7 @@ class AuthFlowSimpleTest {
         // Verify reset password flow stops at email check
         verify(passwordUtil).isValidPassword(request.getNewPassword());
         verify(userRepository).findByEmail(request.getEmail());
+        verify(otpService, never()).validateOtp(anyString(), anyString(), any(OtpType.class));
         verify(passwordUtil, never()).encode(anyString());
     }
 
@@ -334,5 +444,91 @@ class AuthFlowSimpleTest {
         verify(userRepository).findById(1);
         verify(gameProfileRepository).findByUserId(testUser.getId());
         verify(gameProfileRepository).save(any(GameProfile.class));
+    }
+
+    // ========== COMPLETE OTP FLOW TESTS ==========
+
+    @Test
+    @DisplayName("Complete OTP Flow - Forgot Password → Reset Password thành công")
+    void completeOtpFlow_ForgotToReset_Success() {
+        // Given
+        String testEmail = "test@example.com";
+        String testOtp = "123456";
+
+        // Step 1: Forgot Password
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testEmail);
+
+        // Step 2: Reset Password
+        ResetPasswordRequest resetRequest = new ResetPasswordRequest(testEmail, testOtp, "newpassword123", "newpassword123");
+
+        User testUser = new User();
+        testUser.setId(1);
+        testUser.setEmail(testEmail);
+        testUser.setPassword("oldHashedPassword");
+
+        // Mock forgot password flow
+        when(userRepository.existsByEmail(testEmail)).thenReturn(true);
+        doNothing().when(otpService).generateAndSendOtp(testEmail, OtpType.FORGOT_PASSWORD);
+
+        // Mock reset password flow
+        when(passwordUtil.isValidPassword(resetRequest.getNewPassword())).thenReturn(true);
+        when(userRepository.findByEmail(testEmail)).thenReturn(Optional.of(testUser));
+        when(otpService.validateOtp(testEmail, testOtp, OtpType.FORGOT_PASSWORD)).thenReturn(true);
+        when(passwordUtil.encode(resetRequest.getNewPassword())).thenReturn("newHashedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        doNothing().when(emailService).sendPasswordChangeNotification(testEmail);
+
+        // When - Execute complete flow
+        // Step 1: User forgets password
+        ForgotPasswordResponse forgotResponse = authService.forgotPassword(forgotRequest);
+
+        // Step 2: User resets password with OTP
+        ResetPasswordResponse resetResponse = authService.resetPassword(resetRequest);
+
+        // Then - Verify both steps
+        // Forgot Password Response
+        assertNotNull(forgotResponse);
+        assertEquals(testEmail, forgotResponse.getEmail());
+        assertEquals("OTP đã được gửi đến email của bạn", forgotResponse.getMessage());
+
+        // Reset Password Response
+        assertNotNull(resetResponse);
+        assertEquals(testEmail, resetResponse.getEmail());
+        assertEquals("Mật khẩu đã được cập nhật thành công", resetResponse.getMessage());
+
+        // Verify complete flow interactions
+        verify(userRepository).existsByEmail(testEmail);
+        verify(otpService).generateAndSendOtp(testEmail, OtpType.FORGOT_PASSWORD);
+        verify(userRepository).findByEmail(testEmail);
+        verify(otpService).validateOtp(testEmail, testOtp, OtpType.FORGOT_PASSWORD);
+        verify(passwordUtil).encode(resetRequest.getNewPassword());
+        verify(userRepository).save(testUser);
+        verify(emailService).sendPasswordChangeNotification(testEmail);
+    }
+
+    @Test
+    @DisplayName("Complete OTP Flow - Rate Limiting Test")
+    void completeOtpFlow_RateLimiting_Test() {
+        // Given
+        String testEmail = "test@example.com";
+        ForgotPasswordRequest request = new ForgotPasswordRequest(testEmail);
+
+        when(userRepository.existsByEmail(testEmail)).thenReturn(true);
+
+        // Mock rate limit exceeded
+        doThrow(AuthException.otpRateLimitExceeded())
+                .when(otpService).generateAndSendOtp(testEmail, OtpType.FORGOT_PASSWORD);
+
+        // When & Then
+        AuthException exception = assertThrows(AuthException.class,
+                () -> authService.forgotPassword(request));
+
+        assertEquals("Bạn đã yêu cầu OTP quá nhanh. Vui lòng thử lại sau 2 phút", exception.getMessage());
+        assertEquals("OTP_RATE_LIMIT_EXCEEDED", exception.getErrorCode());
+        assertEquals(429, exception.getStatus());
+
+        // Verify rate limiting was checked
+        verify(userRepository).existsByEmail(testEmail);
+        verify(otpService).generateAndSendOtp(testEmail, OtpType.FORGOT_PASSWORD);
     }
 }

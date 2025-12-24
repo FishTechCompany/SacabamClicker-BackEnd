@@ -22,6 +22,10 @@ public class AuthException extends RuntimeException {
         return new AuthException("Tài khoản đã bị vô hiệu hóa", "USER_DISABLED", 403);
     }
 
+    public static AuthException invalidEmail() {
+        return new AuthException("Định dạng email không hợp lệ", "INVALID_EMAIL", 400);
+    }
+
     public static AuthException emailAlreadyExists() {
         return new AuthException("Email đã được sử dụng", "EMAIL_ALREADY_EXISTS", 409);
     }
@@ -44,7 +48,7 @@ public class AuthException extends RuntimeException {
     }
 
     public static AuthException invalidOtp() {
-        return new AuthException("OTP không hợp lệ hoặc đã hết hạn", "INVALID_OTP", 400);
+        return new AuthException("Mã OTP không chính xác hoặc đã hết hạn!", "INVALID_OTP", 400);
     }
 
     public static AuthException otpExpired() {
@@ -53,6 +57,10 @@ public class AuthException extends RuntimeException {
 
     public static AuthException otpAlreadyUsed() {
         return new AuthException("OTP đã được sử dụng", "OTP_ALREADY_USED", 400);
+    }
+
+    public static AuthException otpRateLimitExceeded() {
+        return new AuthException("Bạn đã yêu cầu OTP quá nhanh. Vui lòng thử lại sau 2 phút", "OTP_RATE_LIMIT_EXCEEDED", 429);
     }
 
     // Password related exceptions

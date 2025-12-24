@@ -43,7 +43,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Quên mật khẩu", description = "Gửi OTP để reset mật khẩu")
-    @PostMapping("/forgot-password")
+    @PostMapping("/forgot")
     public ResponseEntity<ApiResponse<Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
         ApiResponse<Object> response = ApiResponse.success(null, "Nếu email tồn tại trong hệ thống, mã OTP sẽ được gửi đi.");
@@ -51,7 +51,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Reset mật khẩu", description = "Reset mật khẩu bằng OTP")
-    @PutMapping("/reset-password")
+    @PutMapping("/reset")
     public ResponseEntity<ApiResponse<Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
         ApiResponse<Object> response = ApiResponse.success(null, "Mật khẩu đã được thay đổi thành công! Goshujinsama có thể đăng nhập lại rồi ạ! >w<");
