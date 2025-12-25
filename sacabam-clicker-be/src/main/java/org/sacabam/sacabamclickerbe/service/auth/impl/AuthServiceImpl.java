@@ -7,8 +7,11 @@ import org.sacabam.sacabamclickerbe.dto.request.auth.LoginRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.RegisterRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResetPasswordRequest;
 import org.sacabam.sacabamclickerbe.dto.request.auth.ResyncUserRequest;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ForgotPasswordResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.LoginResponse;
 import org.sacabam.sacabamclickerbe.dto.response.auth.RegisterResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResetPasswordResponse;
+import org.sacabam.sacabamclickerbe.dto.response.auth.ResyncUserResponse;
 import org.sacabam.sacabamclickerbe.entity.GameProfile;
 import org.sacabam.sacabamclickerbe.entity.Role;
 import org.sacabam.sacabamclickerbe.entity.RolePermission;
@@ -23,8 +26,12 @@ import org.sacabam.sacabamclickerbe.repository.RolePermissionRepository;
 import org.sacabam.sacabamclickerbe.repository.RoleRepository;
 import org.sacabam.sacabamclickerbe.repository.UserRepository;
 import org.sacabam.sacabamclickerbe.service.auth.AuthService;
-import org.sacabam.sacabamclickerbe.utils.JwtUtil;
+import org.sacabam.sacabamclickerbe.service.otp.OtpService;
+import org.sacabam.sacabamclickerbe.service.email.EmailService;
+import org.sacabam.sacabamclickerbe.enums.auth.OtpType;
 import org.sacabam.sacabamclickerbe.utils.PasswordUtil;
+import org.sacabam.sacabamclickerbe.utils.JwtUtil;
+import org.sacabam.sacabamclickerbe.utils.EmailUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +51,9 @@ public class AuthServiceImpl implements AuthService {
     private final AuthMapper authMapper;
     private final PasswordUtil passwordUtil;
     private final JwtUtil jwtUtil;
+    private final OtpService otpService;
+    private final EmailService emailService;
+    private final EmailUtil emailUtil;
 
     @Override
     @Transactional(readOnly = true)
@@ -116,8 +126,11 @@ public class AuthServiceImpl implements AuthService {
         // Validate input
         validateRegisterRequest(request);
 
+        // Chuẩn hóa email
+        String normalizedEmail = emailUtil.normalizeEmail(request.getEmail());
+
         // Kiểm tra email đã tồn tại
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw AuthException.emailAlreadyExists();
         }
 
@@ -127,7 +140,7 @@ public class AuthServiceImpl implements AuthService {
 
         // Tạo user mới
         User newUser = new User();
-        newUser.setEmail(request.getEmail());
+        newUser.setEmail(normalizedEmail);
         newUser.setPassword(passwordUtil.encode(request.getPassword()));
         newUser.setRole(userRole);
         newUser.setStatus(UserStatus.ACTIVE.getValue());
@@ -137,28 +150,51 @@ public class AuthServiceImpl implements AuthService {
         // Tạo game profile mặc định
         createDefaultGameProfile(savedUser);
 
+        // Gửi email chào mừng
+        emailService.sendWelcomeEmail(savedUser.getEmail(), savedUser.getEmail());
+
         log.info("Registration successful for user: {} with role: {}", savedUser.getEmail(), userRole.getName());
         return authMapper.toRegisterResponse(savedUser);
     }
 
     @Override
-    public void forgotPassword(ForgotPasswordRequest request) {
+    public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request) {
         log.info("Forgot password request for email: {}", request.getEmail());
 
-        // Không tiết lộ thông tin user có tồn tại hay không
-        // Chỉ log để admin biết
+        // Kiểm tra email hợp lệ với validation nghiêm ngặt
+        if (!emailUtil.isValidEmail(request.getEmail())) {
+            throw AuthException.invalidEmail();
+        }
+
+        // Kiểm tra user có tồn tại không
         boolean userExists = userRepository.existsByEmail(request.getEmail());
+
         if (userExists) {
             log.info("Password reset requested for existing user: {}", request.getEmail());
-            // TODO: Implement send OTP logic here
+
+            // Tạo và gửi OTP thật qua email
+            otpService.generateAndSendOtp(request.getEmail(), OtpType.FORGOT_PASSWORD);
+
+            return new ForgotPasswordResponse(
+                    request.getEmail(),
+                    "OTP đã được gửi đến email của bạn",
+                    15 // OTP expires in 15 minutes
+            );
         } else {
             log.warn("Password reset requested for non-existing user: {}", request.getEmail());
+            // Vẫn trả về success để không tiết lộ thông tin user
+            // Nhưng không gửi OTP thật
+            return new ForgotPasswordResponse(
+                    request.getEmail(),
+                    "Nếu email tồn tại, OTP sẽ được gửi đến email của bạn",
+                    15
+            );
         }
     }
 
     @Override
     @Transactional
-    public void resetPassword(ResetPasswordRequest request) {
+    public ResetPasswordResponse resetPassword(ResetPasswordRequest request) {
         log.info("Reset password request for email: {}", request.getEmail());
 
         // Validate input
@@ -166,30 +202,49 @@ public class AuthServiceImpl implements AuthService {
 
         // Tìm user
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> AuthException.validationError("Email không tồn tại"));
+                .orElseThrow(AuthException::userNotFound);
 
-        // TODO: Validate OTP here (for now, we'll skip OTP validation)
-        // In real implementation, you would validate the OTP against stored value
+        // Validate OTP thật thay vì mock
+        boolean isOtpValid = otpService.validateOtp(request.getEmail(), request.getOtp(), OtpType.FORGOT_PASSWORD);
+        if (!isOtpValid) {
+            throw AuthException.invalidOtp();
+        }
 
         // Update password
         user.setPassword(passwordUtil.encode(request.getNewPassword()));
         userRepository.save(user);
 
+        // Gửi email thông báo đổi mật khẩu thành công
+        emailService.sendPasswordChangeNotification(user.getEmail());
+
         log.info("Password reset successful for user: {}", user.getEmail());
+        return new ResetPasswordResponse(
+                user.getEmail(),
+                "Mật khẩu đã được cập nhật thành công"
+        );
     }
 
     @Override
     @Transactional
-    public void resyncUser(ResyncUserRequest request) {
-        log.info("Resync user request for userId: {}", request.getUserId());
+    public ResyncUserResponse resyncUser(ResyncUserRequest request) {
+        log.info("Resync user request with token");
+
+        // Validate và decode token
+        if (!jwtUtil.validateToken(request.getToken())) {
+            throw AuthException.invalidToken();
+        }
+
+        // Lấy userId từ token
+        Integer userId = jwtUtil.getUserIdFromToken(request.getToken());
+        String email = jwtUtil.getEmailFromToken(request.getToken());
 
         // Tìm user
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> AuthException.validationError("User không tồn tại"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(AuthException::userNotFound);
 
         // Tìm game profile
         GameProfile gameProfile = gameProfileRepository.findByUserId(user.getId())
-                .orElseThrow(() -> AuthException.validationError("Game profile không tồn tại"));
+                .orElseThrow(AuthException::profileNotFound);
 
         // Update game profile data
         if (request.getCurrentScore() != null) {
@@ -207,25 +262,44 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("User resync successful for userId: {} with score: {}, clickPower: {}, upgradeLevel: {}",
                 user.getId(), gameProfile.getCurrentScore(), gameProfile.getClickPower(), gameProfile.getUpgradeLevel());
+
+        return new ResyncUserResponse(
+                user.getId(),
+                user.getEmail(),
+                gameProfile.getCurrentScore(),
+                gameProfile.getClickPower(),
+                gameProfile.getUpgradeLevel(),
+                "Đồng bộ dữ liệu thành công"
+        );
     }
 
     private void validateRegisterRequest(RegisterRequest request) {
+        // Kiểm tra email hợp lệ với validation nghiêm ngặt
+        if (!emailUtil.isValidEmail(request.getEmail())) {
+            throw AuthException.invalidEmail();
+        }
+
         if (!request.getPassword().equals(request.getConfirmPassword())) {
-            throw AuthException.validationError("Mật khẩu xác nhận không khớp");
+            throw AuthException.passwordMismatch();
         }
 
         if (!passwordUtil.isValidPassword(request.getPassword())) {
-            throw AuthException.validationError("Mật khẩu phải có ít nhất 6 ký tự");
+            throw AuthException.weakPassword();
         }
     }
 
     private void validateResetPasswordRequest(ResetPasswordRequest request) {
+        // Kiểm tra email hợp lệ với validation nghiêm ngặt
+        if (!emailUtil.isValidEmail(request.getEmail())) {
+            throw AuthException.invalidEmail();
+        }
+
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw AuthException.validationError("Mật khẩu xác nhận không khớp");
+            throw AuthException.passwordMismatch();
         }
 
         if (!passwordUtil.isValidPassword(request.getNewPassword())) {
-            throw AuthException.validationError("Mật khẩu phải có ít nhất 6 ký tự");
+            throw AuthException.weakPassword();
         }
     }
 
