@@ -79,12 +79,31 @@ public class JwtUtil {
 
     public boolean validateToken(String token) {
         try {
+            if (token == null || token.trim().isEmpty()) {
+                System.out.println("🔍 JWT Debug: Token is null or empty");
+                return false;
+            }
+
+            System.out.println("🔍 JWT Debug: Validating token: " + token.substring(0, Math.min(20, token.length())) + "...");
+
             Jwts.parserBuilder()
                     .setSigningKey(getSigningKey())
                     .build()
                     .parseClaimsJws(token);
+
+            System.out.println("✅ JWT Debug: Token validation successful");
             return true;
+        } catch (ExpiredJwtException e) {
+            System.out.println("❌ JWT Debug: Token expired - " + e.getMessage());
+            return false;
+        } catch (MalformedJwtException e) {
+            System.out.println("❌ JWT Debug: Malformed token - " + e.getMessage());
+            return false;
+        } catch (SignatureException e) {
+            System.out.println("❌ JWT Debug: Invalid signature - " + e.getMessage());
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
+            System.out.println("❌ JWT Debug: Token validation failed - " + e.getMessage());
             return false;
         }
     }
