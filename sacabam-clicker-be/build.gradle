@@ -50,6 +50,10 @@ dependencies {
     // --- OPENAPI (Swagger UI - Tài liệu API) ---
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
 
+
+    // --- EMAIL (Spring Boot Mail Sender) ---
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     // --- DEV TOOLS ---
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'  //Hỗ trợ Configuration (Metadata)

@@ -1,0 +1,35 @@
+{
+  "registerRequest": {
+    "email": "supabase.integration.test@example.com",
+    "password": "testPassword123",
+    "confirmPassword": "testPassword123"
+  },
+  "loginRequest": {
+    "email": "supabase.integration.test@example.com",
+    "password": "testPassword123"
+  },
+  "forgotPasswordRequest": {
+    "email": "supabase.integration.test@example.com"
+  },
+  "resetPasswordRequest": {
+    "email": "supabase.integration.test@example.com",
+    "otp": "123456",
+    "newPassword": "newTestPassword123",
+    "confirmPassword": "newTestPassword123"
+  },
+  "resyncUserRequest": {
+    "userId": 1,
+    "currentScore": 99999,
+    "clickPower": 5,
+    "upgradeLevel": 3
+  },
+  "loginAfterResetRequest": {
+    "email": "supabase.integration.test@example.com",
+    "password": "newTestPassword123"
+  },
+  "rollbackTestRequest": {
+    "email": "rollback.test.supabase@example.com",
+    "password": "testPassword123",
+    "confirmPassword": "testPassword123"
+  }
+}
