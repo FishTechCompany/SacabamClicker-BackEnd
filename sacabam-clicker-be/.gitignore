@@ -36,5 +36,10 @@ out/
 ### VS Code ###
 .vscode/
 
-### Enviroment ###
+### Environment & local config ###
 .env
+.env.*
+application-local.properties
+application-dev.properties
+application-test.properties
+application-*.local.properties
