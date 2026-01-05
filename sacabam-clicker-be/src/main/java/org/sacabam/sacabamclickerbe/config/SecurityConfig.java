@@ -14,18 +14,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // 1. Tắt CSRF để Frontend có thể gửi POST/PUT request mà không cần token
                 .csrf(AbstractHttpConfigurer::disable)
+
+                // 2. Tắt CORS để tránh lỗi trình duyệt chặn request từ IP khác
+                .cors(AbstractHttpConfigurer::disable)
+
+                // 3. Cho phép TẤT CẢ mọi request không cần đăng nhập
                 .authorizeHttpRequests(auth -> auth
-                        // Cho phép các endpoint của Auth module (login, register, otp...)
-                        // Dựa trên axiosConfig.ts, các path này bắt đầu bằng /api/v1/auth/
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .anyRequest().permitAll()
+                )
 
-                        // Cho phép xem tài liệu API Swagger/OpenAPI (nếu Goshujinsama cần)
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // 4. Đảm bảo không yêu cầu xác thực cơ bản (Form login)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable);
 
-                        // Tất cả các request khác (như thao tác game) phải được xác thực
-                        .anyRequest().authenticated()
-                );
         return http.build();
     }
 }
