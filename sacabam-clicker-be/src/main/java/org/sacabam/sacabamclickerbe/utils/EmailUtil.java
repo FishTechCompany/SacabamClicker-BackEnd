@@ -21,8 +21,7 @@ public class EmailUtil {
     };
 
     private static final Pattern pattern = Pattern.compile(EMAIL_PATTERN);
-
-
+    
     /**
      * Kiểm tra email có hợp lệ không (nghiêm ngặt hơn @Email annotation)
      */
