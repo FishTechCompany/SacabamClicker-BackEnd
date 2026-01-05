@@ -43,3 +43,6 @@ application-secret.properties
 # --- OS Files ---
 .DS_Store
 Thumbs.db
+
+#Customize File
+be_pack_code.bat
